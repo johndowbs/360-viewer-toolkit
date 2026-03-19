@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360 Viewer</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box }
+  body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    cursor: grab;
+  }
+  body.dragging { cursor: grabbing; }
+  #viewer {
+    position: relative;
+    width: 90vw;
+    max-width: 1280px;
+    aspect-ratio: 16/9;
+    background: #111;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(40,40,80,0.3);
+  }
+  #frame { width:100%; height:100%; object-fit:contain; pointer-events:none }
+  #instructions {
+    position: absolute; bottom: 20px; left: 20px;
+    font-size: 12px; color: rgba(255,255,255,0.3); line-height: 1.6;
+  }
+  .loading {
+    position: absolute; top:50%; left:50%;
+    transform: translate(-50%,-50%);
+    font-size: 14px; color: rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+<div id="viewer">
+  <img id="frame" alt="360 viewer">
+  <div class="loading" id="loader">LOADING... 0%</div>
+  <div id="instructions">
+    Drag left/right to rotate<br>
+    Scroll wheel to rotate<br>
+    Arrow keys to step
+  </div>
+</div>
+<script>
+const TOTAL_FRAMES = 192;
+const sensitivity = 0.15;
+const frames = [];
+let currentFrame = 0, loaded = 0, dragging = false, lastX = 0;
+
+function preload() {
+  for (let i = 1; i <= TOTAL_FRAMES; i++) {
+    const img = new Image();
+    img.onload = () => {
+      loaded++;
+      if (loaded === 1) showFrame(0);
+      if (loaded === TOTAL_FRAMES)
+        document.getElementById('loader').style.display = 'none';
+      document.getElementById('loader').textContent =
+        'LOADING... ' + Math.round(loaded / TOTAL_FRAMES * 100) + '%';
+    };
+    img.src = 'frames/frame_' + String(i).padStart(4, '0') + '.jpg';
+    frames.push(img);
+  }
+}
+
+function showFrame(idx) {
+  idx = ((idx % TOTAL_FRAMES) + TOTAL_FRAMES) % TOTAL_FRAMES;
+  currentFrame = idx;
+  document.getElementById('frame').src = frames[idx].src;
+}
+
+document.addEventListener('mousedown', e => {
+  dragging = true; lastX = e.clientX;
+  document.body.classList.add('dragging');
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX;
+  const fd = Math.round(dx * sensitivity);
+  if (fd !== 0) { showFrame(currentFrame + fd); lastX = e.clientX; }
+});
+document.addEventListener('mouseup', () => {
+  dragging = false; document.body.classList.remove('dragging');
+});
+document.addEventListener('wheel', e => {
+  e.preventDefault();
+  showFrame(currentFrame + (e.deltaY > 0 ? 2 : -2));
+}, { passive: false });
+
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const dx = e.touches[0].clientX - touchX;
+  const fd = Math.round(dx * sensitivity);
+  if (fd !== 0) { showFrame(currentFrame + fd); touchX = e.touches[0].clientX; }
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') showFrame(currentFrame - 1);
+  if (e.key === 'ArrowRight') showFrame(currentFrame + 1);
+});
+
+preload();
+</script>
+</body>
+</html>

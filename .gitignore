@@ -1,0 +1,6 @@
+references/*.png
+references/*.jpg
+videos/*.mp4
+__pycache__/
+*.pyc
+viewer/frames/
