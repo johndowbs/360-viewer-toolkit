@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360° Viewer Builder</title>
+<style>
+  :root {
+    --gold: #c9a84c;
+    --gold-dim: rgba(201,168,76,0.4);
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --text: #e0e0e0;
+    --text-dim: rgba(255,255,255,0.4);
+    --success: #4caf50;
+    --error: #ef5350;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    color: var(--gold);
+  }
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 40px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Drop zone */
+  #drop-zone {
+    width: 100%;
+    max-width: 700px;
+    border: 2px dashed var(--gold-dim);
+    border-radius: 16px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--surface);
+    position: relative;
+  }
+  #drop-zone:hover, #drop-zone.dragover {
+    border-color: var(--gold);
+    background: var(--surface2);
+    box-shadow: 0 0 40px rgba(201,168,76,0.1);
+  }
+  #drop-zone .icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.6; }
+  #drop-zone .label { font-size: 1rem; color: var(--text-dim); }
+  #drop-zone .label strong { color: var(--gold); }
+  #drop-zone input { display: none; }
+
+  /* Settings */
+  #settings {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 24px;
+    display: none;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  #settings h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    margin-bottom: 16px;
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .setting-row label {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+  .setting-row input[type="number"], .setting-row select {
+    background: var(--surface2);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    width: 120px;
+    text-align: center;
+  }
+  .setting-row input:focus, .setting-row select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+  .setting-hint {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: -8px;
+    margin-bottom: 12px;
+    padding-left: 4px;
+  }
+
+  /* Progress */
+  #progress-area {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 24px;
+    display: none;
+  }
+  #progress-bar-container {
+    width: 100%;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  #progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--gold), #e8d48b);
+    border-radius: 3px;
+    transition: width 0.2s ease;
+  }
+  #progress-status {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  #progress-status .step { color: var(--gold); }
+  #progress-status .done { color: var(--success); }
+  #progress-status .err { color: var(--error); }
+
+  /* Analysis results */
+  #analysis {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 24px;
+    display: none;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  #analysis h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    margin-bottom: 16px;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .stat .label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat .value { font-size: 1.2rem; color: var(--text); font-weight: 600; margin-top: 4px; }
+  .stat .value.good { color: var(--success); }
+  .stat .value.warn { color: #ff9800; }
+  .stat .value.bad { color: var(--error); }
+
+  /* Build button */
+  #build-btn {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 24px;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--gold), #a08030);
+    border: none;
+    border-radius: 12px;
+    color: #0a0a0f;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    display: none;
+    transition: all 0.3s ease;
+  }
+  #build-btn:hover {
+    box-shadow: 0 0 30px rgba(201,168,76,0.3);
+    transform: translateY(-1px);
+  }
+  #build-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Live Preview Viewer */
+  #preview-area {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 24px;
+    display: none;
+  }
+  #preview-area h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  #preview-viewer {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #111;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(40,40,80,0.3);
+    cursor: grab;
+    user-select: none;
+  }
+  #preview-viewer.pv-dragging { cursor: grabbing; }
+  #preview-viewer.pv-zoomed { cursor: move; }
+  #preview-frame {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    transform-origin: center center;
+    transition: transform 0.15s ease-out;
+  }
+  #preview-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+    line-height: 1.6;
+  }
+  #pv-zoom-indicator {
+    position: absolute; top: 12px; right: 12px;
+    padding: 5px 10px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(201,168,76,0.4); border-radius: 8px;
+    color: #c9a84c; font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.08em; opacity: 0; transition: opacity 0.3s ease; z-index: 10;
+  }
+  #pv-zoom-indicator.visible { opacity: 1; }
+  #pv-zoom-controls {
+    position: absolute; bottom: 16px; right: 16px;
+    display: flex; gap: 6px; z-index: 10;
+  }
+  .pv-zoom-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(201,168,76,0.3); color: #c9a84c;
+    font-size: 1rem; cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+  }
+  .pv-zoom-btn:hover {
+    background: rgba(201,168,76,0.2);
+    border-color: rgba(201,168,76,0.6);
+  }
+  #preview-counter {
+    text-align: center;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Download button */
+  #download-btn {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 24px;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--success), #2e7d32);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    display: none;
+    transition: all 0.3s ease;
+  }
+  #download-btn:hover {
+    box-shadow: 0 0 30px rgba(76,175,80,0.3);
+    transform: translateY(-1px);
+  }
+
+  /* Reset */
+  #reset-btn {
+    margin-top: 16px;
+    padding: 8px 24px;
+    background: transparent;
+    border: 1px solid var(--text-dim);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: none;
+  }
+  #reset-btn:hover { border-color: var(--text); color: var(--text); }
+
+  @media (max-width: 600px) {
+    body { padding: 20px 12px; }
+    h1 { font-size: 1.3rem; }
+    .stat-grid { grid-template-columns: 1fr; }
+    #drop-zone { padding: 40px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>360° VIEWER BUILDER</h1>
+<p class="subtitle">Drop a 360° video. Get a self-contained interactive viewer.</p>
+
+<!-- Drop Zone -->
+<div id="drop-zone">
+  <div class="icon">🎬</div>
+  <div class="label">
+    <strong>Drop your 360° video here</strong><br>
+    or click to browse<br><br>
+    <span style="font-size:0.75rem">MP4, WebM, MOV supported</span>
+  </div>
+  <input type="file" id="file-input" accept="video/*">
+</div>
+
+<!-- Upload button (label linked to file input - works on all browsers) -->
+<label for="file-input" id="upload-btn" style="
+  display: block; text-align: center;
+  width: 100%; max-width: 700px; margin-top: 16px; padding: 14px;
+  background: var(--surface2); border: 1px solid var(--gold-dim);
+  border-radius: 10px; color: var(--gold); font-size: 0.9rem;
+  font-weight: 600; cursor: pointer; letter-spacing: 0.05em;
+">CLICK TO SELECT VIDEO FILE</label>
+
+<!-- Settings -->
+<div id="settings">
+  <h2>Settings</h2>
+  <div class="setting-row">
+    <label>Target frame count</label>
+    <select id="setting-frames">
+      <option value="auto" selected>Auto (recommended)</option>
+      <option value="72">72 (lightweight)</option>
+      <option value="144">144 (balanced)</option>
+      <option value="192">192 (smooth)</option>
+      <option value="288">288 (ultra-smooth)</option>
+    </select>
+  </div>
+  <div class="setting-hint">"Auto" picks the best count based on your video's frame rate and rotation quality.</div>
+  <div class="setting-row">
+    <label>Output quality</label>
+    <select id="setting-quality">
+      <option value="0.85">Standard (~3MB)</option>
+      <option value="0.92" selected>High (~5MB)</option>
+      <option value="0.96">Maximum (~8MB)</option>
+    </select>
+  </div>
+  <div class="setting-row">
+    <label>Include zoom controls</label>
+    <select id="setting-zoom">
+      <option value="yes" selected>Yes</option>
+      <option value="no">No (basic rotation only)</option>
+    </select>
+  </div>
+</div>
+
+<!-- Progress -->
+<div id="progress-area">
+  <div id="progress-bar-container"><div id="progress-bar"></div></div>
+  <div id="progress-status"></div>
+</div>
+
+<!-- Analysis Results -->
+<div id="analysis">
+  <h2>Video Analysis</h2>
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="label">Duration</div>
+      <div class="value" id="stat-duration">-</div>
+    </div>
+    <div class="stat">
+      <div class="label">Resolution</div>
+      <div class="value" id="stat-resolution">-</div>
+    </div>
+    <div class="stat">
+      <div class="label">Rotation Detected</div>
+      <div class="value" id="stat-rotation">-</div>
+    </div>
+    <div class="stat">
+      <div class="label">Confidence</div>
+      <div class="value" id="stat-confidence">-</div>
+    </div>
+    <div class="stat">
+      <div class="label">Usable Frames</div>
+      <div class="value" id="stat-usable">-</div>
+    </div>
+    <div class="stat">
+      <div class="label">Output Frames</div>
+      <div class="value" id="stat-output">-</div>
+    </div>
+  </div>
+</div>
+
+<!-- Build Button -->
+<button id="build-btn">BUILD VIEWER</button>
+
+<!-- Live Preview Viewer -->
+<div id="preview-area">
+  <h2>Preview</h2>
+  <div id="preview-viewer">
+    <img id="preview-frame" alt="preview">
+    <div id="preview-hint">
+      Drag to rotate &middot; Ctrl+scroll or pinch to zoom &middot; +/-/0 keys
+    </div>
+    <div id="pv-zoom-indicator">1.0x</div>
+    <div id="pv-zoom-controls">
+      <button class="pv-zoom-btn" id="pv-btn-out" title="Zoom out">&#8722;</button>
+      <button class="pv-zoom-btn" id="pv-btn-reset" title="Reset">&#9675;</button>
+      <button class="pv-zoom-btn" id="pv-btn-in" title="Zoom in">&#43;</button>
+    </div>
+  </div>
+  <div id="preview-counter"></div>
+</div>
+
+<!-- Download -->
+<button id="download-btn">DOWNLOAD VIEWER (.ZIP)</button>
+<button id="reset-btn">Start Over</button>
+
+<!-- JSZip (inlined, MIT license, ~26KB minified) -->
+<script>
+// JSZip will be loaded from CDN for now; for the final distributable version
+// we inline it. This keeps the dev build smaller.
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let videoFile = null;
+let videoEl = null;
+let analysisResult = null;
+let extractedFrames = []; // {index, blob, dataUrl}
+let sampledFrames = [];   // final frames for the viewer
+
+// ═══════════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+function log(msg, cls = '') {
+  const el = $('progress-status');
+  const span = document.createElement('div');
+  if (cls) span.className = cls;
+  span.textContent = msg;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+function setProgress(pct) {
+  $('progress-bar').style.width = pct + '%';
+}
+function show(id) { $(id).style.display = 'block'; }
+function hide(id) { $(id).style.display = 'none'; }
+
+// ═══════════════════════════════════════════════════════════════
+// VIDEO METADATA (via HTMLVideoElement)
+// ═══════════════════════════════════════════════════════════════
+function loadVideoMeta(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.muted = true;
+    v.preload = 'auto';
+
+    // Timeout: if the browser can't decode the format, onloadedmetadata never fires
+    const timeout = setTimeout(() => {
+      reject(new Error(
+        'Video took too long to load. The format may not be supported by your browser. ' +
+        'Try converting to MP4 (H.264): ffmpeg -i "' + file.name + '" -c:v libx264 -crf 18 output.mp4'
+      ));
+    }, 15000);
+
+    v.onloadedmetadata = () => {
+      clearTimeout(timeout);
+      resolve({
+        el: v,
+        url: url,
+        width: v.videoWidth,
+        height: v.videoHeight,
+        duration: v.duration,
+      });
+    };
+    v.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error(
+        'Cannot read video file. Browsers support MP4 (H.264) and WebM. ' +
+        'MKV, AVI, and other formats need to be converted first.'
+      ));
+    };
+    v.src = url;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FRAME EXTRACTION (WebCodecs + Canvas fallback)
+// ═══════════════════════════════════════════════════════════════
+async function extractAllFrames(file, meta, onProgress) {
+  // Try WebCodecs first (fast, accurate frame-by-frame)
+  if (window.VideoDecoder && window.MediaStreamTrackProcessor !== undefined || true) {
+    return await extractFramesCanvas(meta, onProgress);
+  }
+}
+
+async function extractFramesCanvas(meta, onProgress) {
+  // Canvas-based extraction: seek to each time position, draw frame
+  const v = meta.el;
+  const canvas = document.createElement('canvas');
+  canvas.width = meta.width;
+  canvas.height = meta.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  
+  // Estimate total frames and step through at video FPS
+  // For most AI-generated videos: 24fps. For phone videos: 30fps.
+  // We extract one frame per video frame by seeking in small increments.
+  const estFps = meta.duration <= 10 ? 24 : 30; // Short AI clips are usually 24fps
+  const totalFrames = Math.round(meta.duration * estFps);
+  const timeStep = 1 / estFps;
+  
+  const frames = [];
+  
+  for (let i = 0; i < totalFrames; i++) {
+    const t = i * timeStep;
+    if (t > meta.duration) break;
+    
+    await seekTo(v, t);
+    ctx.drawImage(v, 0, 0);
+    
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    frames.push({ index: i + 1, blob, dataUrl, time: t });
+    
+    if (onProgress) onProgress(i + 1, totalFrames);
+  }
+  
+  return { frames, fps: estFps, totalFrames: frames.length };
+}
+
+function seekTo(video, time) {
+  return new Promise((resolve) => {
+    if (Math.abs(video.currentTime - time) < 0.001) {
+      resolve();
+      return;
+    }
+    video.onseeked = () => resolve();
+    video.currentTime = time;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SSIM COMPUTATION (Canvas-based, grayscale)
+// ═══════════════════════════════════════════════════════════════
+function computeSSIM(imgData1, imgData2) {
+  // Convert to grayscale float arrays
+  const n = imgData1.width * imgData1.height;
+  const a = new Float64Array(n);
+  const b = new Float64Array(n);
+  const d1 = imgData1.data;
+  const d2 = imgData2.data;
+  
+  for (let i = 0; i < n; i++) {
+    const p = i * 4;
+    // Luminance: 0.299R + 0.587G + 0.114B
+    a[i] = d1[p] * 0.299 + d1[p+1] * 0.587 + d1[p+2] * 0.114;
+    b[i] = d2[p] * 0.299 + d2[p+1] * 0.587 + d2[p+2] * 0.114;
+  }
+  
+  // Mean
+  let mu1 = 0, mu2 = 0;
+  for (let i = 0; i < n; i++) { mu1 += a[i]; mu2 += b[i]; }
+  mu1 /= n; mu2 /= n;
+  
+  // Variance and covariance
+  let s1sq = 0, s2sq = 0, cov = 0;
+  for (let i = 0; i < n; i++) {
+    const d1v = a[i] - mu1;
+    const d2v = b[i] - mu2;
+    s1sq += d1v * d1v;
+    s2sq += d2v * d2v;
+    cov += d1v * d2v;
+  }
+  s1sq /= n; s2sq /= n; cov /= n;
+  
+  const C1 = (0.01 * 255) ** 2;
+  const C2 = (0.03 * 255) ** 2;
+  const num = (2 * mu1 * mu2 + C1) * (2 * cov + C2);
+  const den = (mu1 * mu1 + mu2 * mu2 + C1) * (s1sq + s2sq + C2);
+  
+  return num / den;
+}
+
+function getImageData(dataUrl, targetSize) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = targetSize;
+      c.height = targetSize;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, targetSize, targetSize);
+      resolve(ctx.getImageData(0, 0, targetSize, targetSize));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ROTATION ANALYSIS (port of build-viewer.py analyze_rotation)
+// ═══════════════════════════════════════════════════════════════
+async function analyzeRotation(frames, onProgress) {
+  const total = frames.length;
+  const SSIM_SIZE = 128; // Resize to 128x128 for fast SSIM
+  
+  // Sample ~80 frames evenly for SSIM curve (same as Python version)
+  const sampleCount = Math.min(80, total);
+  const sampleIndices = [];
+  for (let i = 0; i < sampleCount; i++) {
+    sampleIndices.push(Math.round(i * (total - 1) / (sampleCount - 1)));
+  }
+  
+  // Get reference frame (frame 1) image data
+  const refData = await getImageData(frames[0].dataUrl, SSIM_SIZE);
+  
+  // Compute SSIM for each sample
+  const curve = [];
+  for (let si = 0; si < sampleIndices.length; si++) {
+    const idx = sampleIndices[si];
+    const frameData = await getImageData(frames[idx].dataUrl, SSIM_SIZE);
+    const ssim = computeSSIM(refData, frameData);
+    curve.push({ frameIndex: idx, frameNum: idx + 1, ssim });
+    if (onProgress) onProgress(si + 1, sampleCount);
+  }
+  
+  // Find global minimum
+  let globalMinIdx = 0;
+  let globalMinSSIM = 1.0;
+  for (const pt of curve) {
+    if (pt.ssim < globalMinSSIM) {
+      globalMinSSIM = pt.ssim;
+      globalMinIdx = pt.frameIndex;
+    }
+  }
+  
+  // === TAIL-PEAK METHOD ===
+  // Find highest SSIM in the final 30% of the video
+  const tailStart = Math.floor(total * 0.7);
+  let bestTailSSIM = 0;
+  let bestTailFrame = total - 1;
+  for (const pt of curve) {
+    if (pt.frameIndex >= tailStart && pt.ssim > bestTailSSIM) {
+      bestTailSSIM = pt.ssim;
+      bestTailFrame = pt.frameIndex;
+    }
+  }
+  
+  // Determine confidence and rotation
+  let confidence, rotDegrees, full360Frame, loopDetected, notes;
+  
+  if (bestTailSSIM > 0.90) {
+    confidence = 'high';
+    rotDegrees = 360;
+    full360Frame = bestTailFrame;
+    loopDetected = true;
+    notes = `Strong 360° loop detected. SSIM returns to ${bestTailSSIM.toFixed(3)} at frame ${bestTailFrame + 1}. ` +
+            `Global minimum ${globalMinSSIM.toFixed(3)} at frame ${globalMinIdx + 1} (opposite side).`;
+  } else if (bestTailSSIM > 0.75) {
+    confidence = 'medium';
+    rotDegrees = 360;
+    full360Frame = bestTailFrame;
+    loopDetected = true;
+    notes = `Probable 360° loop with some visual drift. Tail SSIM peaks at ${bestTailSSIM.toFixed(3)} (frame ${bestTailFrame + 1}). ` +
+            `Quality may be reduced. Consider regenerating the source video.`;
+  } else {
+    loopDetected = false;
+    const midPct = globalMinIdx / total;
+    if (midPct > 0.3 && midPct < 0.7) {
+      confidence = 'low';
+      rotDegrees = 360;
+      full360Frame = total - 1;
+      notes = `Visual drift: SSIM never recovers above ${bestTailSSIM.toFixed(3)}. ` +
+              `The minimum at frame ${globalMinIdx + 1} is near the midpoint, suggesting a full rotation with heavy AI drift.`;
+    } else {
+      confidence = 'low';
+      rotDegrees = Math.min(360, Math.round(360 * globalMinIdx / (total * 0.5)));
+      full360Frame = total - 1;
+      notes = `Poor rotation detected (~${rotDegrees}°). SSIM drops to ${globalMinSSIM.toFixed(3)} and only recovers to ${bestTailSSIM.toFixed(3)}. ` +
+              `This video may not produce a good 360° viewer.`;
+    }
+  }
+  
+  return {
+    rotationDegrees: rotDegrees,
+    full360Frame,
+    loopDetected,
+    globalMinFrame: globalMinIdx,
+    globalMinSSIM,
+    tailPeakFrame: bestTailFrame,
+    tailPeakSSIM: bestTailSSIM,
+    confidence,
+    notes,
+    curve,
+    totalFrames: total,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FRAME SAMPLING (port of build-viewer.py sample_frames)
+// ═══════════════════════════════════════════════════════════════
+function sampleFrames(allFrames, startIdx, endIdx, targetCount) {
+  const usable = endIdx - startIdx;
+  if (usable < targetCount) targetCount = usable;
+  
+  // Even spacing
+  const indices = [];
+  for (let i = 0; i < targetCount; i++) {
+    indices.push(startIdx + Math.round(i * (usable - 1) / (targetCount - 1)));
+  }
+  
+  // Deduplicate
+  const unique = [...new Set(indices)].sort((a, b) => a - b);
+  
+  // Fill gaps if dedup removed entries
+  while (unique.length < targetCount) {
+    let maxGap = 0, maxGapPos = 0;
+    for (let i = 0; i < unique.length - 1; i++) {
+      const gap = unique[i + 1] - unique[i];
+      if (gap > maxGap) { maxGap = gap; maxGapPos = i; }
+    }
+    if (maxGap <= 1) break;
+    const mid = Math.floor((unique[maxGapPos] + unique[maxGapPos + 1]) / 2);
+    unique.splice(maxGapPos + 1, 0, mid);
+  }
+  
+  return unique.slice(0, targetCount).map(idx => allFrames[idx]);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETERMINE OPTIMAL FRAME COUNT
+// ═══════════════════════════════════════════════════════════════
+function pickFrameCount(analysis, fps) {
+  const usable = analysis.full360Frame + 1;
+  
+  // If usable frames are fewer than 100, use them all (minus loop frame)
+  if (usable <= 100) return Math.max(36, usable - 1);
+  
+  // For high-confidence 360, standard targets based on source density
+  if (usable >= 288) return 192;  // Plenty of source frames: smooth output
+  if (usable >= 192) return 144;  // Good source: balanced
+  if (usable >= 120) return Math.min(usable - 1, 120);
+  return Math.max(36, usable - 1);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIEWER HTML TEMPLATE (with zoom)
+// ═══════════════════════════════════════════════════════════════
+function generateViewerHTML(frameCount, includeZoom) {
+  const sensitivity = frameCount <= 72 ? 0.25 :
+                      frameCount <= 144 ? 0.35 :
+                      0.4;
+  
+  const zoomCSS = includeZoom ? `
+  body.zoomed { cursor: move; }
+  body.zoomed.dragging { cursor: move; }
+  #frame {
+    transform-origin: center center;
+    transition: transform 0.15s ease-out;
+  }
+  #zoom-indicator {
+    position: absolute; top: 16px; right: 16px;
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(201,168,76,0.4); border-radius: 8px;
+    color: #c9a84c; font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0.08em; opacity: 0; transition: opacity 0.3s ease; z-index: 10;
+  }
+  #zoom-indicator.visible { opacity: 1; }
+  #zoom-controls {
+    position: absolute; bottom: 20px; right: 20px;
+    display: flex; gap: 8px; z-index: 10;
+  }
+  .zoom-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(201,168,76,0.3); color: #c9a84c;
+    font-size: 1.1rem; cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+  }
+  .zoom-btn:hover {
+    background: rgba(201,168,76,0.2);
+    border-color: rgba(201,168,76,0.6);
+  }` : '';
+
+  const zoomHTML = includeZoom ? `
+  <div id="zoom-indicator">1.0x</div>
+  <div id="zoom-controls">
+    <button class="zoom-btn" id="btn-zoom-out" title="Zoom out (-)">&#8722;</button>
+    <button class="zoom-btn" id="btn-zoom-reset" title="Reset zoom (0)">&#9675;</button>
+    <button class="zoom-btn" id="btn-zoom-in" title="Zoom in (+)">&#43;</button>
+  </div>` : '';
+
+  const zoomInstructions = includeZoom
+    ? 'Ctrl+scroll or pinch to zoom<br>+/-/0 keys for zoom'
+    : '';
+
+  const zoomJS = includeZoom ? `
+// Zoom state
+let zoomLevel = 1.0;
+let panX = 0, panY = 0;
+const ZOOM_MIN = 1.0, ZOOM_MAX = 5.0, ZOOM_STEP = 0.5;
+const frameEl = document.getElementById('frame');
+let zoomTimer = null;
+
+function applyTransform() {
+  if (zoomLevel <= 1.0) { panX = 0; panY = 0; }
+  else {
+    const mx = ((zoomLevel - 1) / 2) * 100;
+    const my = ((zoomLevel - 1) / 2) * 100;
+    panX = Math.max(-mx, Math.min(mx, panX));
+    panY = Math.max(-my, Math.min(my, panY));
+  }
+  frameEl.style.transform = 'scale(' + zoomLevel + ') translate(' + (panX/zoomLevel) + '%, ' + (panY/zoomLevel) + '%)';
+  document.body.classList.toggle('zoomed', zoomLevel > 1.05);
+}
+
+function setZoom(level) {
+  zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, level));
+  applyTransform();
+  const ind = document.getElementById('zoom-indicator');
+  ind.textContent = zoomLevel.toFixed(1) + 'x';
+  ind.classList.add('visible');
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => ind.classList.remove('visible'), 1500);
+}
+
+function resetZoom() { zoomLevel = 1.0; panX = 0; panY = 0; applyTransform(); setZoom(1.0); }
+` : '';
+
+  const mouseJS = includeZoom ? `
+document.addEventListener('mousedown', e => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  document.body.classList.add('dragging');
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  if (zoomLevel > 1.05) {
+    const viewer = document.getElementById('viewer');
+    const rect = viewer.getBoundingClientRect();
+    panX += (dx / rect.width) * 100;
+    panY += (dy / rect.height) * 100;
+    applyTransform();
+    const fd = Math.round(dx * sensitivity * 0.3);
+    if (fd !== 0) { showFrame(currentFrame + fd); }
+  } else {
+    const fd = Math.round(dx * sensitivity);
+    if (fd !== 0) { showFrame(currentFrame + fd); }
+  }
+  lastX = e.clientX; lastY = e.clientY;
+});
+document.addEventListener('mouseup', () => {
+  dragging = false; document.body.classList.remove('dragging');
+});
+document.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    setZoom(zoomLevel + delta);
+  } else {
+    showFrame(currentFrame + (e.deltaY > 0 ? 2 : -2));
+  }
+}, { passive: false });` : `
+document.addEventListener('mousedown', e => {
+  dragging = true; lastX = e.clientX;
+  document.body.classList.add('dragging');
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX;
+  const fd = Math.round(dx * sensitivity);
+  if (fd !== 0) { showFrame(currentFrame + fd); lastX = e.clientX; }
+});
+document.addEventListener('mouseup', () => {
+  dragging = false; document.body.classList.remove('dragging');
+});
+document.addEventListener('wheel', e => {
+  e.preventDefault();
+  showFrame(currentFrame + (e.deltaY > 0 ? 2 : -2));
+}, { passive: false });`;
+
+  const touchJS = includeZoom ? `
+let touchMode = null, lastTouchDist = 0, touchStartX = 0;
+document.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    touchMode = 'pinch';
+    lastTouchDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  } else if (e.touches.length === 1) {
+    touchMode = 'rotate';
+    touchStartX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+  }
+});
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (touchMode === 'pinch' && e.touches.length === 2) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    setZoom(zoomLevel * (dist / lastTouchDist));
+    lastTouchDist = dist;
+  } else if (touchMode === 'rotate' && e.touches.length === 1) {
+    const dx = e.touches[0].clientX - touchStartX;
+    const dy = e.touches[0].clientY - lastY;
+    if (zoomLevel > 1.05) {
+      const rect = document.getElementById('viewer').getBoundingClientRect();
+      panX += (dx / rect.width) * 100;
+      panY += (dy / rect.height) * 100;
+      applyTransform();
+      const fd = Math.round(dx * sensitivity * 0.3);
+      if (fd !== 0) showFrame(currentFrame + fd);
+    } else {
+      const fd = Math.round(dx * sensitivity);
+      if (fd !== 0) showFrame(currentFrame + fd);
+    }
+    touchStartX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+  }
+}, { passive: false });
+document.addEventListener('touchend', e => {
+  if (e.touches.length === 0) touchMode = null;
+  else if (e.touches.length === 1) {
+    touchMode = 'rotate';
+    touchStartX = e.touches[0].clientX;
+  }
+});` : `
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const dx = e.touches[0].clientX - touchX;
+  const fd = Math.round(dx * sensitivity);
+  if (fd !== 0) { showFrame(currentFrame + fd); touchX = e.touches[0].clientX; }
+}, { passive: false });`;
+
+  const keyJS = includeZoom ? `
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') showFrame(currentFrame - 1);
+  if (e.key === 'ArrowRight') showFrame(currentFrame + 1);
+  if (e.key === '+' || e.key === '=') setZoom(zoomLevel + ZOOM_STEP);
+  if (e.key === '-' || e.key === '_') setZoom(zoomLevel - ZOOM_STEP);
+  if (e.key === '0') resetZoom();
+});
+document.getElementById('btn-zoom-in').addEventListener('click', e => { e.stopPropagation(); setZoom(zoomLevel + ZOOM_STEP); });
+document.getElementById('btn-zoom-out').addEventListener('click', e => { e.stopPropagation(); setZoom(zoomLevel - ZOOM_STEP); });
+document.getElementById('btn-zoom-reset').addEventListener('click', e => { e.stopPropagation(); resetZoom(); });
+` : `
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') showFrame(currentFrame - 1);
+  if (e.key === 'ArrowRight') showFrame(currentFrame + 1);
+});`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360° Viewer</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box }
+  body {
+    background: #0a0a0f; color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden; height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none; cursor: grab;
+  }
+  body.dragging { cursor: grabbing; }
+  ${zoomCSS}
+  #viewer {
+    position: relative; width: 90vw; max-width: 1280px;
+    aspect-ratio: 16/9; background: #111; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(40,40,80,0.3);
+  }
+  #frame { width:100%; height:100%; object-fit:contain; pointer-events:none }
+  #instructions {
+    position: absolute; bottom: 20px; left: 20px;
+    font-size: 12px; color: rgba(255,255,255,0.3); line-height: 1.6;
+  }
+  .loading {
+    position: absolute; top:50%; left:50%; transform: translate(-50%,-50%);
+    font-size: 14px; color: rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+<div id="viewer">
+  <img id="frame" alt="360 viewer">
+  <div class="loading" id="loader">LOADING... 0%</div>
+  <div id="instructions">
+    Drag left/right to rotate<br>
+    Scroll wheel to rotate<br>
+    Arrow keys to step<br>
+    ${zoomInstructions}
+  </div>
+  ${zoomHTML}
+</div>
+<script>
+const TOTAL_FRAMES = ${frameCount};
+const sensitivity = ${sensitivity};
+const frames = [];
+let currentFrame = 0, loaded = 0, dragging = false, lastX = 0, lastY = 0;
+
+function preload() {
+  for (let i = 1; i <= TOTAL_FRAMES; i++) {
+    const img = new Image();
+    img.onload = () => {
+      loaded++;
+      if (loaded === 1) showFrame(0);
+      if (loaded === TOTAL_FRAMES) document.getElementById('loader').style.display = 'none';
+      document.getElementById('loader').textContent = 'LOADING... ' + Math.round(loaded / TOTAL_FRAMES * 100) + '%';
+    };
+    img.src = 'frames/frame_' + String(i).padStart(4, '0') + '.jpg';
+    frames.push(img);
+  }
+}
+
+function showFrame(idx) {
+  idx = ((idx % TOTAL_FRAMES) + TOTAL_FRAMES) % TOTAL_FRAMES;
+  currentFrame = idx;
+  document.getElementById('frame').src = frames[idx].src;
+}
+
+${zoomJS}
+${mouseJS}
+${touchJS}
+${keyJS}
+
+preload();
+<\/script>
+</body>
+</html>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ZIP BUILDER
+// ═══════════════════════════════════════════════════════════════
+async function buildZip(frames, viewerHTML, quality, onProgress) {
+  const zip = new JSZip();
+  const framesFolder = zip.folder('frames');
+  
+  // Re-encode frames at target quality
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    const img = new Image();
+    await new Promise(r => { img.onload = r; img.src = frame.dataUrl; });
+    
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    framesFolder.file(`frame_${String(i + 1).padStart(4, '0')}.jpg`, blob);
+    
+    if (onProgress) onProgress(i + 1, frames.length);
+  }
+  
+  zip.file('index.html', viewerHTML);
+  
+  return await zip.generateAsync({ type: 'blob' }, (meta) => {
+    if (onProgress) onProgress(frames.length, frames.length, meta.percent);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIVE PREVIEW VIEWER (interactive 360° preview in the builder)
+// ═══════════════════════════════════════════════════════════════
+let previewSampled = [];
+let pvFrame = 0;
+let pvZoom = 1.0;
+let pvPanX = 0, pvPanY = 0;
+let pvDragging = false, pvLastX = 0, pvLastY = 0;
+let pvZoomTimer = null;
+const PV_ZOOM_MIN = 1.0, PV_ZOOM_MAX = 5.0, PV_ZOOM_STEP = 0.5;
+
+function initPreviewViewer(frames) {
+  previewSampled = frames;
+  pvFrame = 0;
+  pvZoom = 1.0; pvPanX = 0; pvPanY = 0;
+  if (frames.length > 0) {
+    $('preview-frame').src = frames[0].dataUrl;
+    $('preview-counter').textContent = `Frame 1 / ${frames.length}`;
+  }
+
+  const viewer = $('preview-viewer');
+  const frameEl = $('preview-frame');
+
+  function pvApplyTransform() {
+    if (pvZoom <= 1.0) { pvPanX = 0; pvPanY = 0; }
+    else {
+      const mx = ((pvZoom - 1) / 2) * 100;
+      pvPanX = Math.max(-mx, Math.min(mx, pvPanX));
+      pvPanY = Math.max(-mx, Math.min(mx, pvPanY));
+    }
+    frameEl.style.transform = `scale(${pvZoom}) translate(${pvPanX/pvZoom}%, ${pvPanY/pvZoom}%)`;
+    viewer.classList.toggle('pv-zoomed', pvZoom > 1.05);
+  }
+
+  function pvSetZoom(level) {
+    pvZoom = Math.max(PV_ZOOM_MIN, Math.min(PV_ZOOM_MAX, level));
+    pvApplyTransform();
+    const ind = $('pv-zoom-indicator');
+    ind.textContent = pvZoom.toFixed(1) + 'x';
+    ind.classList.add('visible');
+    clearTimeout(pvZoomTimer);
+    pvZoomTimer = setTimeout(() => ind.classList.remove('visible'), 1500);
+  }
+
+  function pvShowFrame(idx) {
+    const n = previewSampled.length;
+    idx = ((idx % n) + n) % n;
+    pvFrame = idx;
+    frameEl.src = previewSampled[idx].dataUrl;
+    $('preview-counter').textContent = `Frame ${idx + 1} / ${n}`;
+  }
+
+  const sens = previewSampled.length <= 72 ? 0.25 :
+               previewSampled.length <= 144 ? 0.35 : 0.4;
+
+  // Mouse
+  viewer.addEventListener('mousedown', e => {
+    e.preventDefault();
+    pvDragging = true; pvLastX = e.clientX; pvLastY = e.clientY;
+    viewer.classList.add('pv-dragging');
+  });
+  // Use window-level listeners so drag works even if cursor leaves the viewer
+  window.addEventListener('mousemove', e => {
+    if (!pvDragging) return;
+    const dx = e.clientX - pvLastX;
+    const dy = e.clientY - pvLastY;
+    if (pvZoom > 1.05) {
+      const rect = viewer.getBoundingClientRect();
+      pvPanX += (dx / rect.width) * 100;
+      pvPanY += (dy / rect.height) * 100;
+      pvApplyTransform();
+      const fd = Math.round(dx * sens * 0.3);
+      if (fd !== 0) pvShowFrame(pvFrame + fd);
+    } else {
+      const fd = Math.round(dx * sens);
+      if (fd !== 0) pvShowFrame(pvFrame + fd);
+    }
+    pvLastX = e.clientX; pvLastY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => {
+    pvDragging = false; viewer.classList.remove('pv-dragging');
+  });
+
+  // Wheel: ctrl = zoom, plain = rotate
+  viewer.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      pvSetZoom(pvZoom + (e.deltaY > 0 ? -PV_ZOOM_STEP : PV_ZOOM_STEP));
+    } else {
+      pvShowFrame(pvFrame + (e.deltaY > 0 ? 2 : -2));
+    }
+  }, { passive: false });
+
+  // Touch: 1-finger rotate, 2-finger pinch zoom
+  let pvTouchMode = null, pvTouchDist = 0, pvTouchX = 0, pvTouchY = 0;
+  viewer.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pvTouchMode = 'pinch';
+      pvTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    } else if (e.touches.length === 1) {
+      pvTouchMode = 'rotate';
+      pvTouchX = e.touches[0].clientX;
+      pvTouchY = e.touches[0].clientY;
+    }
+  });
+  viewer.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (pvTouchMode === 'pinch' && e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pvSetZoom(pvZoom * (dist / pvTouchDist));
+      pvTouchDist = dist;
+    } else if (pvTouchMode === 'rotate' && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - pvTouchX;
+      const dy = e.touches[0].clientY - pvTouchY;
+      if (pvZoom > 1.05) {
+        const rect = viewer.getBoundingClientRect();
+        pvPanX += (dx / rect.width) * 100;
+        pvPanY += (dy / rect.height) * 100;
+        pvApplyTransform();
+        const fd = Math.round(dx * sens * 0.3);
+        if (fd !== 0) pvShowFrame(pvFrame + fd);
+      } else {
+        const fd = Math.round(dx * sens);
+        if (fd !== 0) pvShowFrame(pvFrame + fd);
+      }
+      pvTouchX = e.touches[0].clientX;
+      pvTouchY = e.touches[0].clientY;
+    }
+  }, { passive: false });
+  viewer.addEventListener('touchend', e => {
+    if (e.touches.length === 0) pvTouchMode = null;
+    else if (e.touches.length === 1) {
+      pvTouchMode = 'rotate';
+      pvTouchX = e.touches[0].clientX;
+    }
+  });
+
+  // Keyboard (only when preview is visible)
+  document.addEventListener('keydown', e => {
+    if ($('preview-area').style.display === 'none') return;
+    if (e.key === 'ArrowLeft') pvShowFrame(pvFrame - 1);
+    if (e.key === 'ArrowRight') pvShowFrame(pvFrame + 1);
+    if (e.key === '+' || e.key === '=') pvSetZoom(pvZoom + PV_ZOOM_STEP);
+    if (e.key === '-' || e.key === '_') pvSetZoom(pvZoom - PV_ZOOM_STEP);
+    if (e.key === '0') { pvZoom = 1; pvPanX = 0; pvPanY = 0; pvApplyTransform(); pvSetZoom(1); }
+  });
+
+  // Zoom buttons
+  $('pv-btn-in').addEventListener('click', e => { e.stopPropagation(); pvSetZoom(pvZoom + PV_ZOOM_STEP); });
+  $('pv-btn-out').addEventListener('click', e => { e.stopPropagation(); pvSetZoom(pvZoom - PV_ZOOM_STEP); });
+  $('pv-btn-reset').addEventListener('click', e => { e.stopPropagation(); pvZoom = 1; pvPanX = 0; pvPanY = 0; pvApplyTransform(); pvSetZoom(1); });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN PIPELINE
+// ═══════════════════════════════════════════════════════════════
+async function runAnalysis() {
+  show('progress-area');
+  show('settings');
+  $('progress-status').innerHTML = '';
+  setProgress(0);
+  
+  log('Loading video...', 'step');
+  const meta = await loadVideoMeta(videoFile);
+  videoEl = meta;
+  log(`  ${meta.width}x${meta.height}, ${meta.duration.toFixed(1)}s`, '');
+  setProgress(5);
+  
+  // Extract frames
+  log('Extracting frames (this may take a moment)...', 'step');
+  const extraction = await extractAllFrames(videoFile, meta, (done, total) => {
+    setProgress(5 + (done / total) * 45);
+    if (done % 20 === 0 || done === total) {
+      $('progress-status').lastChild.textContent = `  Extracted ${done}/${total} frames`;
+    }
+  });
+  extractedFrames = extraction.frames;
+  log(`  Extracted ${extraction.frames.length} frames at ~${extraction.fps}fps`, 'done');
+  setProgress(50);
+  
+  // Analyze rotation
+  log('Analyzing rotation (SSIM curve)...', 'step');
+  analysisResult = await analyzeRotation(extraction.frames, (done, total) => {
+    setProgress(50 + (done / total) * 30);
+  });
+  analysisResult.fps = extraction.fps;
+  log(`  ${analysisResult.rotationDegrees}° detected (${analysisResult.confidence} confidence)`, 'done');
+  log(`  ${analysisResult.notes}`, '');
+  setProgress(80);
+  
+  // Display analysis
+  $('stat-duration').textContent = meta.duration.toFixed(1) + 's';
+  $('stat-resolution').textContent = meta.width + 'x' + meta.height;
+  $('stat-rotation').textContent = analysisResult.rotationDegrees + '°';
+  
+  const confEl = $('stat-confidence');
+  confEl.textContent = analysisResult.confidence.toUpperCase();
+  confEl.className = 'value ' + (
+    analysisResult.confidence === 'high' ? 'good' :
+    analysisResult.confidence === 'medium' ? 'warn' : 'bad'
+  );
+  
+  const usableCount = analysisResult.full360Frame + 1;
+  $('stat-usable').textContent = usableCount + ' / ' + extraction.frames.length;
+  
+  // Determine output frame count
+  const frameSetting = $('setting-frames').value;
+  const outputFrames = frameSetting === 'auto'
+    ? pickFrameCount(analysisResult, extraction.fps)
+    : parseInt(frameSetting);
+  $('stat-output').textContent = outputFrames;
+  
+  show('analysis');
+  show('build-btn');
+  
+  // Build live preview from sampled frames
+  const previewFrameCount = Math.min(outputFrames, usableCount - 1);
+  previewSampled = sampleFrames(extractedFrames, 0, analysisResult.full360Frame, previewFrameCount);
+  initPreviewViewer(previewSampled);
+  show('preview-area');
+  
+  setProgress(100);
+  log('Analysis complete. Review settings and click BUILD VIEWER.', 'done');
+}
+
+async function runBuild() {
+  $('build-btn').disabled = true;
+  $('build-btn').textContent = 'BUILDING...';
+  
+  const frameSetting = $('setting-frames').value;
+  const outputFrames = frameSetting === 'auto'
+    ? pickFrameCount(analysisResult, analysisResult.fps)
+    : parseInt(frameSetting);
+  const quality = parseFloat($('setting-quality').value);
+  const includeZoom = $('setting-zoom').value === 'yes';
+  
+  log('', '');
+  log('Sampling ' + outputFrames + ' frames from 360° range...', 'step');
+  
+  // Sample from frame 0 to full360Frame (exclusive of loop frame)
+  const endFrame = analysisResult.full360Frame;
+  sampledFrames = sampleFrames(extractedFrames, 0, endFrame, outputFrames);
+  log(`  Sampled ${sampledFrames.length} frames (range: 1-${endFrame + 1})`, 'done');
+  
+  // Generate viewer HTML
+  log('Generating viewer HTML...', 'step');
+  const viewerHTML = generateViewerHTML(sampledFrames.length, includeZoom);
+  log('  Done (' + (includeZoom ? 'with' : 'without') + ' zoom)', 'done');
+  
+  // Build ZIP
+  log('Building ZIP archive...', 'step');
+  const zipBlob = await buildZip(sampledFrames, viewerHTML, quality, (done, total, zipPct) => {
+    if (zipPct !== undefined) {
+      $('progress-status').lastChild.textContent = `  Compressing... ${Math.round(zipPct)}%`;
+    } else {
+      $('progress-status').lastChild.textContent = `  Encoding frame ${done}/${total}`;
+    }
+  });
+  
+  const sizeMB = (zipBlob.size / 1024 / 1024).toFixed(1);
+  log(`  ZIP ready: ${sizeMB}MB (${sampledFrames.length} frames)`, 'done');
+  
+  // Download
+  const downloadUrl = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = '360-viewer.zip';
+  
+  $('download-btn').onclick = () => a.click();
+  show('download-btn');
+  show('reset-btn');
+  
+  $('build-btn').textContent = 'BUILD COMPLETE';
+  log('', '');
+  log('Download your viewer. Unzip and open index.html in any browser.', 'done');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EVENT WIRING
+// ═══════════════════════════════════════════════════════════════
+const dropZone = $('drop-zone');
+const fileInput = $('file-input');
+
+// CRITICAL: Prevent browser from opening/playing dropped files.
+// Must be on document level - if only on the drop zone, any miss = browser plays the video.
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => e.preventDefault());
+
+// ═══════════════════════════════════════════════════════════════
+// FORMAT CONVERSION (ffmpeg.wasm for MKV/AVI/etc)
+// ═══════════════════════════════════════════════════════════════
+let ffmpegLoaded = false;
+let ffmpegInstance = null;
+
+async function convertToMP4(file) {
+  // Load ffmpeg.wasm on first use
+  if (!ffmpegLoaded) {
+    log('  Loading conversion engine (first time only)...', '');
+    const { FFmpeg } = FFmpegWASM;
+    // Inline toBlobURL (replaces @ffmpeg/util dependency)
+    async function toBlobURL(url, type) {
+      const res = await fetch(url);
+      const blob = new Blob([await res.arrayBuffer()], { type });
+      return URL.createObjectURL(blob);
+    }
+    ffmpegInstance = new FFmpeg();
+    ffmpegInstance.on('progress', ({ progress }) => {
+      const pct = Math.round(progress * 100);
+      const el = $('progress-status');
+      if (el.lastChild) el.lastChild.textContent = '  Converting... ' + pct + '%';
+    });
+    ffmpegInstance.on('log', ({ message }) => {
+      // Silently consume ffmpeg logs
+    });
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    await ffmpegInstance.load({
+      coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js', 'text/javascript'),
+      wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm'),
+    });
+    ffmpegLoaded = true;
+    log('  Engine loaded.', 'done');
+  }
+
+  const inputName = 'input' + file.name.substring(file.name.lastIndexOf('.'));
+  const outputName = 'output.mp4';
+
+  log('  Writing file to converter...', '');
+  const data = new Uint8Array(await file.arrayBuffer());
+  await ffmpegInstance.writeFile(inputName, data);
+
+  log('  Converting... 0%', '');
+  await ffmpegInstance.exec(['-i', inputName, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-an', outputName]);
+
+  const result = await ffmpegInstance.readFile(outputName);
+  const mp4Blob = new Blob([result.buffer], { type: 'video/mp4' });
+  const mp4File = new File([mp4Blob], file.name.replace(/\.[^.]+$/, '.mp4'), { type: 'video/mp4' });
+
+  // Cleanup
+  await ffmpegInstance.deleteFile(inputName);
+  await ffmpegInstance.deleteFile(outputName);
+
+  return mp4File;
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  // Accept any video, even if MIME is missing (some browsers don't set it)
+  if (!file.type.startsWith('video/') && !file.name.match(/\.(mp4|webm|mov|avi|mkv|ts|mts|flv|wmv)$/i)) {
+    show('progress-area');
+    log('Not a video file. Please select an MP4, WebM, or MOV.', 'err');
+    return;
+  }
+  videoFile = file;
+  dropZone.querySelector('.label').innerHTML = '<strong>' + file.name + '</strong><br>' +
+    (file.size / 1024 / 1024).toFixed(1) + ' MB';
+  runAnalysis().catch(err => { show('progress-area'); log('ERROR: ' + err.message, 'err'); });
+}
+
+dropZone.addEventListener('click', () => fileInput.click());
+// upload-btn is now a <label for="file-input"> - no JS needed, browser handles it natively
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFile(e.dataTransfer.files[0]).catch(err => { show('progress-area'); log('ERROR: ' + err.message, 'err'); });
+});
+
+// Also catch drops anywhere on the page (not just the drop zone)
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.target.closest('#preview-viewer')) return; // Don't intercept viewer drag
+  handleFile(e.dataTransfer.files[0]).catch(err => { show('progress-area'); log('ERROR: ' + err.message, 'err'); });
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (file) {
+    handleFile(file).catch(err => { show('progress-area'); log('ERROR: ' + err.message, 'err'); });
+  }
+});
+
+$('build-btn').addEventListener('click', () => {
+  runBuild().catch(err => log('ERROR: ' + err.message, 'err'));
+});
+
+$('reset-btn').addEventListener('click', () => {
+  videoFile = null; videoEl = null; analysisResult = null;
+  extractedFrames = []; sampledFrames = [];
+  hide('settings'); hide('progress-area'); hide('analysis');
+  hide('build-btn'); hide('preview-area'); hide('download-btn'); hide('reset-btn');
+  $('build-btn').disabled = false;
+  $('build-btn').textContent = 'BUILD VIEWER';
+  $('progress-status').innerHTML = '';
+  setProgress(0);
+  dropZone.querySelector('.label').innerHTML =
+    '<strong>Drop your 360° video here</strong><br>or click to browse<br><br>' +
+    '<span style="font-size:0.75rem">MP4, WebM, MOV supported</span>';
+});
+</script>
+</body>
+</html>
