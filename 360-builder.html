@@ -322,6 +322,107 @@
   }
   #reset-btn:hover { border-color: var(--text); color: var(--text); }
 
+
+  /* Frame strip */
+  #frame-strip-area {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 24px;
+    display: none;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  #frame-strip-area h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .strip-info {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .strip-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .strip-btn {
+    padding: 6px 14px;
+    background: var(--surface2);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .strip-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .strip-btn.danger { border-color: var(--error); color: var(--error); }
+  .strip-btn.danger:hover { background: rgba(239,83,80,0.15); }
+  #frame-strip {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-behavior: smooth;
+  }
+  #frame-strip::-webkit-scrollbar { height: 6px; }
+  #frame-strip::-webkit-scrollbar-track { background: var(--surface2); border-radius: 3px; }
+  #frame-strip::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+  .strip-frame {
+    flex-shrink: 0;
+    width: 48px;
+    height: 80px;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    border: 2px solid transparent;
+    transition: all 0.15s ease;
+    opacity: 1;
+  }
+  .strip-frame:hover { border-color: var(--gold); }
+  .strip-frame.selected { border-color: var(--error); opacity: 0.5; }
+  .strip-frame.selected::after {
+    content: "✕";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--error);
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-shadow: 0 0 4px black;
+  }
+  .strip-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .strip-frame .frame-num {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 8px;
+    color: white;
+    background: rgba(0,0,0,0.7);
+    padding: 1px 0;
+  }
+  #strip-status {
+    font-size: 0.75rem;
+    color: var(--gold);
+    margin-top: 8px;
+    min-height: 1.2em;
+  }
+
   @media (max-width: 600px) {
     body { padding: 20px 12px; }
     h1 { font-size: 1.3rem; }
@@ -364,11 +465,11 @@
       <option value="auto" selected>Auto (recommended)</option>
       <option value="72">72 (lightweight)</option>
       <option value="144">144 (balanced)</option>
-      <option value="192">192 (smooth)</option>
+      <option value="192">192 (smooth, recommended)</option>
       <option value="288">288 (ultra-smooth)</option>
     </select>
   </div>
-  <div class="setting-hint">"Auto" picks the best count based on your video's frame rate and rotation quality.</div>
+  <div class="setting-hint">"Auto" targets 192 frames (proven smoothest). Lower for smaller files, higher for ultra-smooth.</div>
   <div class="setting-row">
     <label>Output quality</label>
     <select id="setting-quality">
@@ -421,6 +522,21 @@
       <div class="value" id="stat-output">-</div>
     </div>
   </div>
+</div>
+
+
+<!-- Frame Strip (for removing unwanted frames) -->
+<div id="frame-strip-area">
+  <h2>Frame Editor</h2>
+  <p class="strip-info">Click frames to mark for removal. Red frames will be excluded from the build.</p>
+  <div class="strip-controls">
+    <button class="strip-btn" id="strip-select-tail" title="Select last N frames">Select Last 5</button>
+    <button class="strip-btn" id="strip-select-head" title="Select first N frames">Select First 5</button>
+    <button class="strip-btn" id="strip-clear-selection">Clear Selection</button>
+    <button class="strip-btn danger" id="strip-remove-selected">Remove Selected (0)</button>
+  </div>
+  <div id="frame-strip"></div>
+  <div id="strip-status"></div>
 </div>
 
 <!-- Build Button -->
@@ -569,8 +685,33 @@ async function extractFramesCanvas(meta, onProgress) {
 
 function seekTo(video, time) {
   return new Promise((resolve) => {
+    // For the very first frame (time=0), we need to ensure the video
+    // has actually decoded. Seeking to a tiny offset forces a decode.
+    if (time === 0 && video.currentTime === 0 && video.readyState < 3) {
+      // Video hasn't decoded yet - wait for it
+      const onReady = () => {
+        video.removeEventListener('canplay', onReady);
+        // Seek to a tiny offset to force frame decode, then back to 0
+        video.onseeked = () => {
+          video.onseeked = () => resolve();
+          video.currentTime = 0;
+        };
+        video.currentTime = 0.01;
+      };
+      if (video.readyState >= 3) {
+        onReady();
+      } else {
+        video.addEventListener('canplay', onReady);
+      }
+      return;
+    }
     if (Math.abs(video.currentTime - time) < 0.001) {
-      resolve();
+      // Already at position but ensure frame is decoded
+      if (video.readyState >= 2) {
+        resolve();
+      } else {
+        video.addEventListener('canplay', () => resolve(), { once: true });
+      }
       return;
     }
     video.onseeked = () => resolve();
@@ -771,14 +912,12 @@ function sampleFrames(allFrames, startIdx, endIdx, targetCount) {
 function pickFrameCount(analysis, fps) {
   const usable = analysis.full360Frame + 1;
   
-  // If usable frames are fewer than 100, use them all (minus loop frame)
+  // V2 method: 192 evenly-sampled frames is the proven sweet spot.
+  // Provides ~1.9 deg angular resolution with 0.35 sensitivity.
+  // Confirmed as the best feel across all deployed viewers.
+  if (usable >= 192) return 192;
   if (usable <= 100) return Math.max(36, usable - 1);
-  
-  // For high-confidence 360, standard targets based on source density
-  if (usable >= 288) return 192;  // Plenty of source frames: smooth output
-  if (usable >= 192) return 144;  // Good source: balanced
-  if (usable >= 120) return Math.min(usable - 1, 120);
-  return Math.max(36, usable - 1);
+  return Math.min(usable - 1, 144);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -787,6 +926,7 @@ function pickFrameCount(analysis, fps) {
 function generateViewerHTML(frameCount, includeZoom) {
   const sensitivity = frameCount <= 72 ? 0.25 :
                       frameCount <= 144 ? 0.35 :
+                      frameCount <= 192 ? 0.35 :
                       0.4;
   
   const zoomCSS = includeZoom ? `
@@ -1269,6 +1409,129 @@ function initPreviewViewer(frames) {
   $('pv-btn-reset').addEventListener('click', e => { e.stopPropagation(); pvZoom = 1; pvPanX = 0; pvPanY = 0; pvApplyTransform(); pvSetZoom(1); });
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+// FRAME STRIP (click-to-remove frame editor)
+// ═══════════════════════════════════════════════════════════════
+let removedFrameIndices = new Set();
+
+function buildFrameStrip(frames) {
+  const strip = $('frame-strip');
+  strip.innerHTML = '';
+  removedFrameIndices.clear();
+  
+  // Show every frame as a small thumbnail
+  frames.forEach((frame, idx) => {
+    const div = document.createElement('div');
+    div.className = 'strip-frame';
+    div.dataset.idx = idx;
+    
+    const img = document.createElement('img');
+    img.src = frame.dataUrl;
+    img.loading = 'lazy';
+    div.appendChild(img);
+    
+    const num = document.createElement('div');
+    num.className = 'frame-num';
+    num.textContent = idx + 1;
+    div.appendChild(num);
+    
+    div.addEventListener('click', () => toggleFrameSelection(div, idx));
+    strip.appendChild(div);
+  });
+  
+  updateStripStatus();
+}
+
+function toggleFrameSelection(el, idx) {
+  if (removedFrameIndices.has(idx)) {
+    removedFrameIndices.delete(idx);
+    el.classList.remove('selected');
+  } else {
+    removedFrameIndices.add(idx);
+    el.classList.add('selected');
+  }
+  updateStripStatus();
+}
+
+function updateStripStatus() {
+  const count = removedFrameIndices.size;
+  const total = extractedFrames.length;
+  const remaining = total - count;
+  $('strip-remove-selected').textContent = `Remove Selected (${count})`;
+  $('strip-status').textContent = count > 0 
+    ? `${count} frame${count > 1 ? 's' : ''} marked for removal. ${remaining} frames will be used.`
+    : `${total} frames total. Click to select frames for removal.`;
+}
+
+function applyFrameRemoval() {
+  if (removedFrameIndices.size === 0) return;
+  
+  const removeCount = removedFrameIndices.size;
+  
+  // Remove selected frames from extractedFrames
+  const kept = extractedFrames.filter((_, idx) => !removedFrameIndices.has(idx));
+  
+  // Re-index
+  kept.forEach((f, i) => { f.index = i + 1; });
+  extractedFrames = kept;
+  
+  // Rebuild strip
+  buildFrameStrip(extractedFrames);
+  
+  log(`Removed ${removeCount} frames. ${extractedFrames.length} remaining.`, 'done');
+  removedFrameIndices.clear();
+  
+  // Update stats
+  $('stat-usable').textContent = extractedFrames.length + ' / ' + extractedFrames.length;
+  $('stat-output').textContent = extractedFrames.length;
+  $('strip-status').textContent = `${extractedFrames.length} frames after removal.`;
+  
+  // Rebuild preview with remaining frames
+  previewSampled = extractedFrames.slice();
+  initPreviewViewer(previewSampled);
+}
+
+// Strip control event listeners (connected after DOM ready in the main event section below)
+function initStripControls() {
+  $('strip-select-tail').addEventListener('click', () => {
+    const total = extractedFrames.length;
+    const strip = $('frame-strip');
+    for (let i = total - 5; i < total; i++) {
+      if (i >= 0) {
+        removedFrameIndices.add(i);
+        const el = strip.children[i];
+        if (el) el.classList.add('selected');
+      }
+    }
+    updateStripStatus();
+    // Scroll to end
+    strip.scrollLeft = strip.scrollWidth;
+  });
+  
+  $('strip-select-head').addEventListener('click', () => {
+    const strip = $('frame-strip');
+    for (let i = 0; i < 5 && i < extractedFrames.length; i++) {
+      removedFrameIndices.add(i);
+      const el = strip.children[i];
+      if (el) el.classList.add('selected');
+    }
+    updateStripStatus();
+    strip.scrollLeft = 0;
+  });
+  
+  $('strip-clear-selection').addEventListener('click', () => {
+    removedFrameIndices.clear();
+    document.querySelectorAll('.strip-frame.selected').forEach(el => el.classList.remove('selected'));
+    updateStripStatus();
+  });
+  
+  $('strip-remove-selected').addEventListener('click', () => {
+    if (removedFrameIndices.size === 0) return;
+    applyFrameRemoval();
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // MAIN PIPELINE
 // ═══════════════════════════════════════════════════════════════
@@ -1326,14 +1589,20 @@ async function runAnalysis() {
   const outputFrames = frameSetting === 'auto'
     ? pickFrameCount(analysisResult, extraction.fps)
     : parseInt(frameSetting);
-  $('stat-output').textContent = outputFrames;
+  $('stat-output').textContent = usableCount;
   
   show('analysis');
+  
+  // Build frame strip for manual editing
+  buildFrameStrip(extractedFrames);
+  show('frame-strip-area');
+  
   show('build-btn');
   
-  // Build live preview from sampled frames
-  const previewFrameCount = Math.min(outputFrames, usableCount - 1);
-  previewSampled = sampleFrames(extractedFrames, 0, analysisResult.full360Frame, previewFrameCount);
+  // Preview uses ALL usable frames (not the sampled output count)
+  // This gives the user a true representation of what they have
+  const previewEnd = analysisResult.full360Frame;
+  previewSampled = extractedFrames.slice(0, previewEnd + 1);
   initPreviewViewer(previewSampled);
   show('preview-area');
   
@@ -1502,11 +1771,14 @@ $('build-btn').addEventListener('click', () => {
   runBuild().catch(err => log('ERROR: ' + err.message, 'err'));
 });
 
+initStripControls();
+
 $('reset-btn').addEventListener('click', () => {
   videoFile = null; videoEl = null; analysisResult = null;
-  extractedFrames = []; sampledFrames = [];
+  extractedFrames = []; sampledFrames = []; removedFrameIndices.clear();
   hide('settings'); hide('progress-area'); hide('analysis');
-  hide('build-btn'); hide('preview-area'); hide('download-btn'); hide('reset-btn');
+  hide('frame-strip-area'); hide('build-btn'); hide('preview-area'); hide('download-btn'); hide('reset-btn');
+  $('frame-strip').innerHTML = '';
   $('build-btn').disabled = false;
   $('build-btn').textContent = 'BUILD VIEWER';
   $('progress-status').innerHTML = '';
